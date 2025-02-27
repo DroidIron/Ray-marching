@@ -1,0 +1,16 @@
+#version 330 core
+out vec4 frag_color;
+
+uniform vec2 screen_size;
+// Camera:
+uniform vec3 camera_position;
+uniform vec3 camera_direction;
+uniform vec3 camera_up;
+uniform vec3 camera_right;
+float fov = 100;
+
+void main()
+{
+    frag_color = vec4(0.05f, 0.05f, 0.05f, 1.0f);
+
+}
