@@ -5,6 +5,8 @@
 
 ![ray_marching_outline](https://github.com/user-attachments/assets/8e24443d-10d8-453e-a05f-f51f868d7d0f)
 
+![lava_light](https://github.com/user-attachments/assets/8b958923-0490-4ce8-b4b8-c1c77330ec8f)
+
 # Running the program:
  To run the program use the main.exe file or build the program using the makefile included.
 # How it works:
