@@ -8,4 +8,5 @@
 #include <stdlib.h>
 
 void init_render(void);
-void render(void);
+void render(double time);
+void destroy_programs(void);

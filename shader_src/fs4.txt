@@ -1,0 +1,200 @@
+#version 330 core
+out vec4 frag_color;
+
+uniform vec2 screen_size;
+uniform float time;
+
+// Camera:
+uniform vec3 camera_position;
+uniform vec3 camera_direction;
+uniform vec3 camera_up;
+uniform vec3 camera_right;
+uniform vec2 mouse;
+
+// Settings:
+float step_limit = 120;
+float fov = 1.5;
+
+float distance_to_object(vec3 point);
+vec3 calculate_normal(vec3 point);
+float sdf_sphere(vec3 point, vec3 sphere_position, float radius);
+float sdf_box(vec3 point, vec3 box_size, vec3 box_position);
+float op_smooth_union(float o1, float o2, float k);
+float op_smooth_subtraction(float o1, float o2, float k);
+float op_subtraction(float d1, float d2);
+mat2 rotate_2d(float angle);
+float sdf_fireball(vec3 point, vec3 sphere_position, float radius);
+float sdf_wave_sphere(vec3 point, vec3 sphere_position, float radius);
+float sdf_wave_plane(vec3 point);
+float sdf_wave_cube(vec3 point, vec3 box_size, vec3 box_position);
+float sdf_ship(vec3 point);
+
+void main()
+{
+    // NDC:
+    vec2 uv = (gl_FragCoord.xy * 2.0 - screen_size.xy) / screen_size.y;
+    vec2 m = (mouse.xy * 2.0 - screen_size.xy) / screen_size.y;
+
+    // Ray origin & ray direction:
+    vec3 ray_origin = camera_position * fov;
+    vec3 ray_direction = normalize(uv.x * camera_right + uv.y * camera_up + camera_direction);
+    vec3 col = vec3(0);
+
+    float distance_traveled = 0.0;
+
+    // Camera rotation:
+    ray_origin.yz *= rotate_2d(-m.y * 2);
+    ray_direction.yz *= rotate_2d(-m.y * 2);
+    ray_origin.xz *= rotate_2d(-m.x * 2);
+    ray_direction.xz *= rotate_2d(-m.x * 2);
+
+    vec3 fog_color = vec3(0.1, 0.1, 1);
+    float absorption = 0.025;
+    vec3 final_color = vec3(0);
+
+    vec3 hitPoint;
+    bool hit = false;
+
+    for (int i = 0; i < step_limit; i++)
+    {
+        hitPoint = ray_origin + ray_direction * distance_traveled;
+
+        float distance = distance_to_object(hitPoint);
+
+        if (distance < 0.001) {
+            hit = true;
+            break;
+        }
+
+        distance_traveled += distance;
+        if (distance > 100) { break; }
+    }
+
+    if (hit)
+    {
+        // Normal:
+        vec3 normal = calculate_normal(hitPoint);
+
+        float rim = smoothstep(0.0, 0.2, 1.0 - abs(dot(normal, ray_direction))) * 0.5;
+
+        // Needs to be inversed!!!!
+        vec3 shipColor = vec3(0.8, 0.8, 1);
+        vec3 waterColor = vec3(0.65, 0.32, 0.17);  
+
+        float waterDist = sdf_wave_plane(hitPoint);
+        float shipDist = sdf_ship(hitPoint);
+
+        float blendFactor = smoothstep(-0.1, 0.1, shipDist - waterDist);
+        vec3 baseColor = mix(waterColor, shipColor, blendFactor);
+
+        final_color = mix(baseColor, vec3(1.0), rim * blendFactor);
+    } 
+    else
+    {
+        final_color = fog_color;
+    }
+
+    frag_color = vec4(final_color, 1.0);
+}
+
+float distance_to_object(vec3 point)
+{
+    float sphere = sdf_wave_plane(point);
+
+    float ship = sdf_ship(point);
+
+    return op_smooth_union(sphere, ship, .8);
+}
+
+vec3 calculate_normal(vec3 point)
+{
+    float epsilon = 0.001;
+    vec2 e = vec2(epsilon, 0);
+    
+    return normalize(vec3(
+        distance_to_object(point + e.xyy) - distance_to_object(point - e.xyy),
+        distance_to_object(point + e.yxy) - distance_to_object(point - e.yxy),
+        distance_to_object(point + e.yyx) - distance_to_object(point - e.yyx)
+    ));
+}
+
+float sdf_sphere(vec3 point, vec3 sphere_position, float radius)
+{
+    return length(point - sphere_position) - radius;
+}
+
+float sdf_box(vec3 point, vec3 box_size, vec3 box_position)
+{
+    vec3 q = abs(point - box_position) - box_size;
+    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
+float op_smooth_union(float o1, float o2, float k)
+{
+    float h = clamp(0.5 + 0.5 * (o2 - o1)/k, 0.0, 1.0);
+    return mix(o2, o1, h) - k * h * (1.0 - h);
+}
+
+float op_smooth_subtraction(float o1, float o2, float k)
+{
+    float h = clamp(0.5 - 0.5 * (o2 + o1)/k, 0.0, 1.0);
+    return mix(o2, -o1, h) + k * h * (1.0 - h);
+}
+
+float op_subtraction(float d1, float d2)
+{
+    return max(-d1, d2);
+}
+
+mat2 rotate_2d(float angle)
+{
+    return mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
+}
+
+float sdf_fireball(vec3 point, vec3 sphere_position, float radius)
+{
+    float noise = sin(point.x * 5.0 + time * 5.0) * 0.2;
+    return length(point - sphere_position)- (radius + noise);
+}
+
+float sdf_wave_sphere(vec3 point, vec3 sphere_position, float radius)
+{
+    float wave = sin(point.x * 5.0 + time * 3.0) * 0.2;
+    wave += sin(point.y * 4.0 + time * 2.0) * 0.15;
+    wave += sin(point.z * 3.0 + time * 4.0) * 0.1;
+    
+    return length(point - sphere_position) - (radius + wave);
+}
+
+float sdf_wave_plane(vec3 point)
+{
+    float wave = sin(point.x * 0.5 + time * 3.0) * 0.005/1000;
+    wave += sin(point.z * 4.0 + time * 2.5) * 0.2;
+    return wave - point.y;
+}
+
+float sdf_wave_cube(vec3 point, vec3 box_size, vec3 box_position)
+{
+    float waveX = sin(point.y * 3.0 + time * 2.0) * 0.2;
+    float waveY = sin(point.x * 2.5 + time * 1.8) * 0.2;
+    float waveZ = sin(point.z * 3.5 + time * 2.2) * 0.2;
+
+    vec3 warped_point = point + vec3(waveX, waveY, waveZ);
+
+    vec3 q = abs(warped_point - box_position) - box_size;
+    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
+float sdf_ship(vec3 point)
+{
+    // Hull:
+    float hull = sdf_box(point, vec3(2, 2, 4), vec3(0));
+    vec3 q = point;
+    q.xz = rotate_2d(45) * point.xz;
+    float hull_forward = sdf_box(q, vec3(1.5, 2, 1.5), vec3(3, 0, 2));
+    float cabin = sdf_box(point, vec3(2, 1, 2), vec3(0, -2.5, -2));
+    // Mast:
+    float mast = sdf_box(point, vec3(0.5, 5, 0.5), vec3(0, -2, 1.5));
+
+    return min(min(op_smooth_union(hull, hull_forward, 0.3), op_smooth_union(hull, cabin, 0.3)), op_smooth_union(hull, mast, 0.3));
+}

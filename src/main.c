@@ -7,6 +7,7 @@
 
 #include "window.h"
 #include "shader.h"
+#include "input.h"
 #include "stb_image.h"
 #include "texture.h"
 #include "render.h"
@@ -16,6 +17,9 @@
 #define WINDOW_HEIGHT 800
 
 // Game loop:
+#define TARGET_FPS 60
+#define FRAME_TIME (1000 / 60)
+
 bool game_running = true;
 SDL_Event event;
 
@@ -26,31 +30,37 @@ int main(int argc, char *argv[])
     if (init() != 0) {return 1;}
     init_render();
 
+    Uint64 last_tick = SDL_GetPerformanceCounter();
+    double total_time = 0.0;
+    double frequency = (double)SDL_GetPerformanceFrequency();
+
+    camera.mode = 0;
+
     while (game_running)
     { 
+        Uint64 frame_start = SDL_GetPerformanceCounter();
+        
+        Uint64 current_tick = SDL_GetPerformanceCounter();
+        double delta_time = (current_tick - last_tick) / frequency;
+        last_tick = current_tick;
+
+        total_time += delta_time;
+
         glViewport(0, 0, window->width, window->height);
 
-        while (SDL_PollEvent(&event))
+        if (!process_input(event)) {return false;}
+
+        render(total_time);
+
+        Uint64 frame_end = SDL_GetPerformanceCounter();
+        double elapsed_time = (frame_end - frame_start) * 1000 / SDL_GetPerformanceFrequency();
+        if (elapsed_time < FRAME_TIME)
         {
-            if (event.type == SDL_EVENT_QUIT)
-            {
-                game_running = false;
-            }
-            if (event.type == SDL_EVENT_WINDOW_RESIZED)
-            {
-                resize_window(event.window.data1, event.window.data2);
-            }
-            if (event.type == SDL_EVENT_KEY_DOWN)
-            {
-                game_running = false;
-            }
+            SDL_Delay((Uint32)(FRAME_TIME - elapsed_time));
         }
-
-        render();
-
-        SDL_Delay(16);
     }
 
+    destroy_programs();
     cleanup_window(window);
 
     SDL_Quit();

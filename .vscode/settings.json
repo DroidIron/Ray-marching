@@ -1,0 +1,19 @@
+{
+    "files.associations": {
+        "glad.h": "c",
+        "stdio.h": "c",
+        "sdl.h": "c",
+        "stdbool.h": "c",
+        "window.h": "c",
+        "shader.h": "c",
+        "stb_image.h": "c",
+        "stdlib.h": "c",
+        "cglm.h": "c",
+        "texture.h": "c",
+        "render.h": "c",
+        "freetype.h": "c",
+        "ft2build.h": "c",
+        "nuklear_sdl_gl3.h": "c",
+        "input.h": "c"
+    }
+}

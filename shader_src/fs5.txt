@@ -1,0 +1,124 @@
+#version 330 core
+out vec4 frag_color;
+
+uniform vec2 screen_size;
+uniform float time;
+
+// Camera:
+uniform vec3 camera_position;
+uniform vec3 camera_direction;
+uniform vec3 camera_up;
+uniform vec3 camera_right;
+uniform vec2 mouse;
+
+// Settings:
+float step_limit = 200;
+float fov = 1;
+
+float distance_to_object(vec3 point);
+float sdf_sphere(vec3 point, vec3 sphere_position, float radius);
+float sdf_box(vec3 point, vec3 box_size, vec3 box_position);
+float op_smooth_union(float o1, float o2, float k);
+float op_smooth_subtraction(float o1, float o2, float k);
+float op_subtraction(float d1, float d2);
+mat2 rotate_2d(float angle);
+vec3 repeat(vec3 point, float c);
+float sdf_infinite_cube(vec3 point);
+
+void main()
+{
+    // NDC:
+    vec2 uv = (gl_FragCoord.xy * 2.0 - screen_size.xy) / screen_size.y; // Screen
+    vec2 m = (mouse.xy * 2.0 - screen_size.xy) / screen_size.y; // Mouse
+
+    // Ray origin & ray direction:
+    vec3 ray_origin = camera_position * fov;
+    vec3 ray_direction = normalize(uv.x * camera_right + uv.y * camera_up + camera_direction);
+    vec3 col = vec3(0); // Current pixels color.
+
+    float distance_traveled = 0.0;
+
+    // Camera y:
+    ray_origin.yz *= rotate_2d(-m.y * 2);
+    ray_direction.yz *= rotate_2d(-m.y * 2);
+
+    // Camera x:
+    ray_origin.xz *= rotate_2d(-m.x * 2);
+    ray_direction.xz *= rotate_2d(-m.x * 2);
+
+    for (int i = 0; i < step_limit; i++)
+    {
+        // Ray marching:
+        vec3 point = ray_origin + ray_direction * distance_traveled; // Position along the ray
+
+        // Distance to closes object:
+        float distance = distance_to_object(point);
+        distance_traveled += distance;
+
+        if (distance < 0.001) {break;}
+        if (distance > 100) {break;}
+    }
+
+    col = vec3(distance_traveled * 0.05);
+
+    frag_color = vec4(col, 1.0);
+}
+
+float distance_to_object(vec3 point)
+{
+    float cube = sdf_infinite_cube(point);
+
+    return cube;
+}
+
+float sdf_sphere(vec3 point, vec3 sphere_position, float radius)
+{
+    return length(point - sphere_position) - radius;
+}
+
+float sdf_box(vec3 point, vec3 box_size, vec3 box_position)
+{
+    vec3 q = abs(point - box_position) - box_size;
+    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
+float op_smooth_union(float o1, float o2, float k)
+{
+    float h = clamp(0.5 + 0.5 * (o2 - o1)/k, 0.0, 1.0);
+    return mix(o2, o1, h) - k * h * (1.0 - h);
+}
+
+float op_smooth_subtraction(float o1, float o2, float k)
+{
+    float h = clamp(0.5 - 0.5 * (o2 + o1)/k, 0.0, 1.0);
+    return mix(o2, -o1, h) + k * h * (1.0 - h);
+}
+
+float op_subtraction(float d1, float d2)
+{
+    return max(-d1, d2);
+}
+
+mat2 rotate_2d(float angle)
+{
+    return mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
+}
+
+vec3 repeat(vec3 point, float c)
+{
+    return mod(point, c) - 0.5 * c;
+}
+
+float sdf_infinite_cube(vec3 point)
+{
+    vec3 q = repeat(point - vec3(time * 2.0, 0, 0), 4.0);
+    q.xz = rotate_2d(time) * q.xz;
+    q.y += sin(time);
+    float scale = sin(time / 1.5);
+    if (scale < 0.2)
+    {
+        scale = 0.2;
+    }
+
+    return sdf_box(q, vec3(scale), vec3(0.0));
+}
