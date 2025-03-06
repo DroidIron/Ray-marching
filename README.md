@@ -15,6 +15,3 @@
 # Sources:
 * https://www.youtube.com/watch?v=khblXafu7iA
 * https://iquilezles.org/articles/distfunctions/
-
-# Todo:
-The shaders are all completed but the C code needs to be cleaned up.
